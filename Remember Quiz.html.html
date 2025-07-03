@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Remember Quiz</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #f0f4f8;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      max-width: 700px;
+      margin: 40px auto;
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      text-align: center;
+    }
+    select, input, textarea, button {
+      padding: 10px;
+      margin: 10px 0;
+      width: 100%;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      font-size: 16px;
+    }
+    button {
+      background-color: #28a745;
+      color: white;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #218838;
+    }
+    .hidden {
+      display: none;
+    }
+    .result-box {
+      text-align: left;
+      background: #e8f5e9;
+      padding: 15px;
+      border-radius: 8px;
+      margin-top: 20px;
+    }
+    h1 {
+      color: #28a745;
+    }
+    .section-title {
+      font-size: 20px;
+      margin-top: 20px;
+      color: #1b5e20;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>📘 Remember Quiz</h1>
+    <div id="setup">
+      <h3>📂 Selecciona un bloque</h3>
+      <select id="bloqueSelect"></select>
+      <button onclick="iniciarQuiz()">🎯 Iniciar Quiz</button>
+      <button onclick="mostrarFormularioBloque()">➕ Agregar nuevo bloque</button>
+      <div id="nuevoBloqueForm" class="hidden">
+        <h3>📝 Crear nuevo bloque</h3>
+        <input type="text" id="nombreBloque" placeholder="Nombre del bloque">
+        <textarea id="contenidoBloque" rows="6" placeholder="Ej: rapido:veloz\nbonito:hermoso"></textarea>
+        <button onclick="guardarBloquePersonalizado()">💾 Guardar bloque</button>
+      </div>
+    </div>
+    <div id="quiz" class="hidden">
+      <h3 id="pregunta"></h3>
+      <input type="text" id="respuesta" placeholder="Escribe el sinónimo" onkeydown="if(event.key==='Enter'){verificarRespuesta()}" autofocus>
+      <button onclick="verificarRespuesta()">✅ Responder</button>
+      <p id="mensaje"></p>
+    </div>
+    <div id="resultado" class="hidden">
+      <h2>📊 Resultados</h2>
+      <p>✅ <b>Correctas:</b> <span id="aciertos"></span></p>
+      <p>❌ <b>Incorrectas:</b> <span id="errores"></span></p>
+      <p>❓ <b>No contestadas:</b> <span id="noContestadas"></span></p>
+      <div class="result-box">
+        <h3 class="section-title">❌ INCORRECTAS</h3>
+        <div id="detalleErrores"></div>
+        <h3 class="section-title">❓ NO CONTESTADAS</h3>
+        <div id="detalleNoContestadas"></div>
+      </div>
+      <button onclick="location.reload()">🔁 Reiniciar</button>
+    </div>
+  </div>
+  <script>
+    const bloquesFijos = {};
+    let bloques = { ...bloquesFijos };
+    let preguntas = [], indice = 0, correctas = 0;
+    let errores = [], noContestadas = [];
+
+    function cargarBloques() {
+      const select = document.getElementById("bloqueSelect");
+      select.innerHTML = "";
+      Object.keys(bloques).forEach(nombre => {
+        const option = document.createElement("option");
+        option.value = nombre;
+        option.textContent = nombre;
+        select.appendChild(option);
+      });
+    }
+
+    function mostrarFormularioBloque() {
+      document.getElementById("nuevoBloqueForm").classList.toggle("hidden");
+    }
+
+    function guardarBloquePersonalizado() {
+      const nombre = document.getElementById("nombreBloque").value.trim();
+      const contenido = document.getElementById("contenidoBloque").value.trim();
+      if (!nombre || !contenido) return alert("Por favor completa los campos.");
+      const lineas = contenido.split("\n");
+      const nuevoBloque = [];
+      lineas.forEach(linea => {
+        const [palabra, sinonimos] = linea.split(":").map(s => s.trim().toLowerCase());
+        if (palabra && sinonimos) {
+          nuevoBloque.push({ palabra, sinonimos: sinonimos.split(",").map(x => x.trim()) });
+        }
+      });
+      bloques[nombre] = nuevoBloque;
+      localStorage.setItem("bloquesPersonalizados", JSON.stringify(bloques));
+      cargarBloques();
+      document.getElementById("nuevoBloqueForm").classList.add("hidden");
+    }
+
+    function iniciarQuiz() {
+      const seleccion = document.getElementById("bloqueSelect").value;
+      preguntas = bloques[seleccion];
+      indice = 0;
+      correctas = 0;
+      errores = [];
+      noContestadas = [];
+      document.getElementById("setup").classList.add("hidden");
+      document.getElementById("quiz").classList.remove("hidden");
+      mostrarPregunta();
+    }
+
+    function mostrarPregunta() {
+      if (indice < preguntas.length) {
+        document.getElementById("mensaje").textContent = "";
+        document.getElementById("pregunta").textContent = `🗨️ ¿Sinónimo de "${preguntas[indice].palabra}"?`;
+        document.getElementById("respuesta").value = "";
+        document.getElementById("respuesta").focus();
+      } else {
+        mostrarResultados();
+      }
+    }
+
+    function verificarRespuesta() {
+      const resp = document.getElementById("respuesta").value.trim().toLowerCase();
+      const palabra = preguntas[indice].palabra;
+      const correctos = preguntas[indice].sinonimos;
+
+      if (resp === "") {
+        noContestadas.push({ palabra, correctos });
+        indice++;
+        mostrarPregunta();
+        return;
+      }
+
+      if (correctos.includes(resp)) {
+        correctas++;
+      } else {
+        errores.push({ palabra, tuRespuesta: resp, correctos });
+        document.getElementById("mensaje").textContent = `✖ "${resp}" no está entre los sinónimos esperados.`;
+      }
+
+      indice++;
+      setTimeout(mostrarPregunta, 1500);
+    }
+
+    function mostrarResultados() {
+      document.getElementById("quiz").classList.add("hidden");
+      document.getElementById("resultado").classList.remove("hidden");
+      document.getElementById("aciertos").textContent = correctas;
+      document.getElementById("errores").textContent = errores.length;
+      document.getElementById("noContestadas").textContent = noContestadas.length;
+
+      let erroresHTML = "";
+      errores.forEach(e => {
+        erroresHTML += `<h4>${e.palabra}</h4>Tu respuesta: <b>${e.tuRespuesta}</b><br>Correcto: ${e.correctos.join(", ")}<hr>`;
+      });
+      document.getElementById("detalleErrores").innerHTML = erroresHTML;
+
+      let sinResponderHTML = "";
+      noContestadas.forEach(e => {
+        sinResponderHTML += `<h4>${e.palabra}</h4>No respondiste<br>Correcto: ${e.correctos.join(", ")}<hr>`;
+      });
+      document.getElementById("detalleNoContestadas").innerHTML = sinResponderHTML;
+    }
+
+    (function recuperarBloques() {
+      const guardados = localStorage.getItem("bloquesPersonalizados");
+      if (guardados) {
+        const personalizados = JSON.parse(guardados);
+        bloques = { ...bloquesFijos, ...personalizados };
+      }
+      cargarBloques();
+    })();
+  </script>
+  <script src="bloques.js"></script>
+</body>
+</html>
